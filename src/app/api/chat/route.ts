@@ -3,10 +3,9 @@ import { VirtualFileSystem } from "@/lib/file-system";
 import { streamText, appendResponseMessages } from "ai";
 import { buildStrReplaceTool } from "@/lib/tools/str-replace";
 import { buildFileManagerTool } from "@/lib/tools/file-manager";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
 import { getLanguageModel, isMockProvider } from "@/lib/provider";
 import { generationPrompt } from "@/lib/prompts/generation";
+import { saveProjectState } from "@/lib/agents/save-project";
 
 export async function POST(req: Request) {
   const {
@@ -42,37 +41,13 @@ export async function POST(req: Request) {
       file_manager: buildFileManagerTool(fileSystem),
     },
     onFinish: async ({ response }) => {
-      // Save to project if projectId is provided and user is authenticated
       if (projectId) {
-        try {
-          // Check if user is authenticated
-          const session = await getSession();
-          if (!session) {
-            console.error("User not authenticated, cannot save project");
-            return;
-          }
-
-          // Get the messages from the response
-          const responseMessages = response.messages || [];
-          // Combine original messages with response messages
-          const allMessages = appendResponseMessages({
-            messages: [...messages.filter((m) => m.role !== "system")],
-            responseMessages,
-          });
-
-          await prisma.project.update({
-            where: {
-              id: projectId,
-              userId: session.userId,
-            },
-            data: {
-              messages: JSON.stringify(allMessages),
-              data: JSON.stringify(fileSystem.serialize()),
-            },
-          });
-        } catch (error) {
-          console.error("Failed to save project data:", error);
-        }
+        const responseMessages = response.messages || [];
+        const allMessages = appendResponseMessages({
+          messages: [...messages.filter((m) => m.role !== "system")],
+          responseMessages,
+        });
+        await saveProjectState(projectId, allMessages, fileSystem.serialize());
       }
     },
   });
