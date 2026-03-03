@@ -10,7 +10,6 @@ import { CodeEditor } from "@/components/editor/CodeEditor";
 import { PreviewFrame } from "@/components/preview/PreviewFrame";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HeaderActions } from "@/components/HeaderActions";
-import { AgentModeToggle } from "@/components/chat/AgentModeToggle";
 
 interface MainContentProps {
   user?: {
@@ -44,7 +43,6 @@ export function MainContent({ user, project }: MainContentProps) {
                   <h1 className="text-lg font-semibold text-neutral-900 tracking-tight">
                     React Component Multi Agent Generator
                   </h1>
-                  <AgentModeToggle />
                 </div>
 
                 {/* Chat Content */}

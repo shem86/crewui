@@ -1,6 +1,5 @@
 import { test, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { render, screen, cleanup } from "@testing-library/react";
 import { ChatInterface } from "../ChatInterface";
 import { useChat } from "@/lib/contexts/chat-context";
 
@@ -49,9 +48,7 @@ const mockUseChat = {
   input: "",
   handleInputChange: vi.fn(),
   handleSubmit: vi.fn(),
-  status: "idle" as const,
-  agentMode: "single" as const,
-  setAgentMode: vi.fn(),
+  status: "ready" as const,
   agentMessages: [],
   agentMessageHistory: [],
   isMultiAgentRunning: false,
@@ -89,7 +86,8 @@ test("passes correct props to MessageList", () => {
 
   const messageList = screen.getByTestId("message-list");
   expect(messageList.textContent).toContain("2 messages");
-  expect(messageList.textContent).toContain("loading: true");
+  // MessageList always receives isLoading=false in multi-agent mode
+  expect(messageList.textContent).toContain("loading: false");
 });
 
 test("passes correct props to MessageInput", () => {
@@ -130,10 +128,10 @@ test("isLoading is true when status is streaming", () => {
   expect(submitButton).toHaveProperty("disabled", true);
 });
 
-test("isLoading is false when status is idle", () => {
+test("isLoading is false when status is ready", () => {
   (useChat as any).mockReturnValue({
     ...mockUseChat,
-    status: "idle",
+    status: "ready",
   });
 
   render(<ChatInterface />);
@@ -175,7 +173,6 @@ test("renders past agent runs from agentMessageHistory as completed feeds", () =
 
   (useChat as any).mockReturnValue({
     ...mockUseChat,
-    agentMode: "multi",
     messages: [{ id: "1", role: "user", content: "Hello" }],
     agentMessageHistory: [pastRun],
     agentMessages: [],
@@ -199,7 +196,6 @@ test("renders both history feeds and live feed together", () => {
 
   (useChat as any).mockReturnValue({
     ...mockUseChat,
-    agentMode: "multi",
     messages: [{ id: "1", role: "user", content: "Hello" }],
     agentMessageHistory: [pastRun],
     agentMessages: liveMessages,

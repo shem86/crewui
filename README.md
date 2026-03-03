@@ -13,7 +13,7 @@ Built on a base project from a [Claude Code in Action course](https://anthropic.
 
 ## Key Features
 
-- **Multi-agent workflow** — Design → Engineer → QA pipeline with automatic revision loop when code doesn't pass review (single-agent mode available behind a feature flag)
+- **Multi-agent workflow** — Design → Engineer → QA pipeline with automatic revision loop when code doesn't pass review
 - **Real-time agent activity feed** — SSE-streamed events show each agent's progress, tool calls, and decisions as they happen
 - **Live preview** — in-browser rendering via Babel transpilation with hot reload on file changes
 - **Virtual file system** — all generated files exist in-memory, no disk writes
@@ -57,7 +57,6 @@ User prompt → Design Agent → Engineer Agent → QA Agent
 
 - **LangGraph.js `StateGraph`** — the workflow is a compiled state machine with conditional edges for tool-call routing, nudge/retry logic, and the QA revision loop (`src/lib/agents/graph.ts`)
 - **SSE streaming** — agent events (`agent_start`, `agent_message`, `agent_tool_call`, `agent_done`) are streamed to the client in real time via the `/api/chat/multi-agent` endpoint
-- **Feature flag toggle** — `NEXT_PUBLIC_ENABLE_SINGLE_AGENT=true` enables the single/multi-agent mode toggle in the UI; multi-agent is the default
 - **Iteration limits** — the QA → Engineer revision loop is capped at 2 iterations to prevent runaway loops
 - **Cost-conscious defaults** — uses Claude Haiku 4.5 by default to keep API costs low (assuming an api-key is provided as env var); upgrading to a smarter model (e.g. Sonnet) will produce better results
 - **Client/server type separation** — shared types live in `src/lib/agents/types.ts` (no LangChain imports) to avoid bundling Node.js-only dependencies into client code
@@ -133,7 +132,6 @@ npm run test     # Run test suite
 
 - `ANTHROPIC_API_KEY` — Claude API key (optional; falls back to mock responses if missing)
 - `JWT_SECRET` — secret for session tokens
-- `NEXT_PUBLIC_ENABLE_SINGLE_AGENT` — set to `"true"` to enable the single/multi-agent mode toggle in the UI
 
 ---
 
@@ -146,4 +144,3 @@ Base project from a [Claude Code course](https://www.udemy.com/course/claude-cod
 - GitHub Actions + Claude Code CI/CD integration with Playwright MCP
 - Custom Claude Code skills (gh-actions, langgraph, refactor)
 - Claude Code hooks (security gate, Prettier auto-format, TypeScript type-checker)
-- Feature flag system and agent mode toggle

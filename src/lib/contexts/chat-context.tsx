@@ -7,16 +7,12 @@ import {
   useEffect,
   useState,
   useCallback,
-  useRef,
 } from "react";
-import { useChat as useAIChat } from "@ai-sdk/react";
 import { Message } from "ai";
 import { useFileSystem } from "./file-system-context";
 import { setHasAnonWork } from "@/lib/anon-work-tracker";
 import type { AgentStreamEvent, AgentMessage } from "@/lib/agents/types";
 export type { AgentMessage } from "@/lib/agents/types";
-
-export type AgentMode = "single" | "multi";
 
 interface ChatContextProps {
   projectId?: string;
@@ -30,8 +26,6 @@ interface ChatContextType {
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
   status: string;
-  agentMode: AgentMode;
-  setAgentMode: (mode: AgentMode) => void;
   agentMessages: AgentMessage[];
   agentMessageHistory: AgentMessage[][];
   isMultiAgentRunning: boolean;
@@ -97,62 +91,39 @@ export function ChatProvider({
   initialMessages = [],
   initialAgentEventRuns = [],
 }: ChatContextProps & { children: ReactNode }) {
-  const { fileSystem, handleToolCall, refreshFileSystem } = useFileSystem();
-  const [agentMode, setAgentMode] = useState<AgentMode>(
-    process.env.NEXT_PUBLIC_ENABLE_SINGLE_AGENT === "true" ? "single" : "multi"
-  );
+  const { fileSystem, refreshFileSystem } = useFileSystem();
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([]);
   const [agentMessageHistory, setAgentMessageHistory] = useState<AgentMessage[][]>(initialAgentEventRuns);
   const [isMultiAgentRunning, setIsMultiAgentRunning] = useState(false);
-  const [multiAgentMessages, setMultiAgentMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [input, setInput] = useState("");
 
-  const {
-    messages: singleMessages,
-    input: singleInput,
-    handleInputChange: singleHandleInputChange,
-    handleSubmit: singleHandleSubmit,
-    status: singleStatus,
-  } = useAIChat({
-    api: "/api/chat",
-    initialMessages,
-    body: {
-      files: fileSystem.serialize(),
-      projectId,
-    },
-    onToolCall: ({ toolCall }) => {
-      handleToolCall(toolCall);
-    },
-  });
-
-  // Multi-agent input state
-  const [multiInput, setMultiInput] = useState("");
-
-  const multiHandleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMultiInput(e.target.value);
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInput(e.target.value);
   }, []);
 
-  const multiHandleSubmit = useCallback(
+  const handleSubmit = useCallback(
     async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
-      if (!multiInput.trim() || isMultiAgentRunning) return;
+      if (!input.trim() || isMultiAgentRunning) return;
 
       const userMessage: Message = {
         id: `user-${Date.now()}`,
         role: "user",
-        content: multiInput.trim(),
+        content: input.trim(),
       };
 
-      setMultiAgentMessages((prev) => [...prev, userMessage]);
+      setMessages((prev) => [...prev, userMessage]);
       setAgentMessages([]);
       setIsMultiAgentRunning(true);
-      setMultiInput("");
+      setInput("");
 
       try {
         const response = await fetch("/api/chat/multi-agent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            messages: [...multiAgentMessages, userMessage],
+            messages: [...messages, userMessage],
             files: fileSystem.serialize(),
             projectId,
           }),
@@ -195,7 +166,11 @@ export function ChatProvider({
           role: "assistant",
           content: "Multi-agent workflow completed. Check the preview to see the results.",
         };
-        setMultiAgentMessages((prev) => [...prev, assistantMessage]);
+        setMessages((prev) => [...prev, assistantMessage]);
+        setAgentMessageHistory((prev) => {
+          if (agentMessages.length > 0) return [...prev, agentMessages];
+          return prev;
+        });
       } catch (error) {
         console.error("Multi-agent error:", error);
         const errorMessage: Message = {
@@ -203,22 +178,15 @@ export function ChatProvider({
           role: "assistant",
           content: `Error: ${error instanceof Error ? error.message : "Multi-agent workflow failed"}`,
         };
-        setMultiAgentMessages((prev) => [...prev, errorMessage]);
+        setMessages((prev) => [...prev, errorMessage]);
       } finally {
         setIsMultiAgentRunning(false);
       }
     },
-    [multiInput, isMultiAgentRunning, multiAgentMessages, fileSystem, projectId, refreshFileSystem]
+    [input, isMultiAgentRunning, messages, agentMessages, fileSystem, projectId, refreshFileSystem]
   );
 
-  // Select the right set of values based on mode
-  const messages = agentMode === "single" ? singleMessages : multiAgentMessages;
-  const input = agentMode === "single" ? singleInput : multiInput;
-  const handleInputChange =
-    agentMode === "single" ? singleHandleInputChange : multiHandleInputChange;
-  const handleSubmit = agentMode === "single" ? singleHandleSubmit : multiHandleSubmit;
-  const status =
-    agentMode === "single" ? singleStatus : isMultiAgentRunning ? "streaming" : "ready";
+  const status = isMultiAgentRunning ? "streaming" : "ready";
 
   // Track anonymous work
   useEffect(() => {
@@ -235,8 +203,6 @@ export function ChatProvider({
         handleInputChange,
         handleSubmit,
         status,
-        agentMode,
-        setAgentMode,
         agentMessages,
         agentMessageHistory,
         isMultiAgentRunning,

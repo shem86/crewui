@@ -1,22 +1,14 @@
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, act, cleanup } from "@testing-library/react";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import { ChatProvider, useChat } from "../chat-context";
 import { useFileSystem } from "../file-system-context";
-import { useChat as useAIChat } from "@ai-sdk/react";
 import * as anonTracker from "@/lib/anon-work-tracker";
 import { AgentRole } from "@/lib/agents/types";
 import type { AgentMessage } from "@/lib/agents/types";
 
-// Enable single agent mode for tests (matches pre-feature-flag default)
-vi.stubEnv("NEXT_PUBLIC_ENABLE_SINGLE_AGENT", "true");
-
 // Mock dependencies
 vi.mock("../file-system-context", () => ({
   useFileSystem: vi.fn(),
-}));
-
-vi.mock("@ai-sdk/react", () => ({
-  useChat: vi.fn(),
 }));
 
 vi.mock("@/lib/anon-work-tracker", () => ({
@@ -45,25 +37,14 @@ describe("ChatContext", () => {
     serialize: vi.fn(() => ({ "/test.js": { type: "file", content: "test" } })),
   };
 
-  const mockHandleToolCall = vi.fn();
-
-  const mockUseAIChat = {
-    messages: [],
-    input: "",
-    handleInputChange: vi.fn(),
-    handleSubmit: vi.fn(),
-    status: "idle",
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
 
     (useFileSystem as any).mockReturnValue({
       fileSystem: mockFileSystem,
-      handleToolCall: mockHandleToolCall,
+      handleToolCall: vi.fn(),
+      refreshFileSystem: vi.fn(),
     });
-
-    (useAIChat as any).mockReturnValue(mockUseAIChat);
   });
 
   afterEach(() => {
@@ -79,19 +60,14 @@ describe("ChatContext", () => {
 
     expect(screen.getByTestId("messages").textContent).toBe("0");
     expect(screen.getByTestId("input").getAttribute("value")).toBe(null);
-    expect(screen.getByTestId("status").textContent).toBe("idle");
+    expect(screen.getByTestId("status").textContent).toBe("ready");
   });
 
-  test("initializes with project ID and messages", () => {
+  test("initializes with initial messages", () => {
     const initialMessages = [
       { id: "1", role: "user" as const, content: "Hello" },
       { id: "2", role: "assistant" as const, content: "Hi there!" },
     ];
-
-    (useAIChat as any).mockReturnValue({
-      ...mockUseAIChat,
-      messages: initialMessages,
-    });
 
     render(
       <ChatProvider projectId="test-project" initialMessages={initialMessages}>
@@ -99,29 +75,14 @@ describe("ChatContext", () => {
       </ChatProvider>
     );
 
-    expect(useAIChat).toHaveBeenCalledWith({
-      api: "/api/chat",
-      initialMessages,
-      body: {
-        files: mockFileSystem.serialize(),
-        projectId: "test-project",
-      },
-      onToolCall: expect.any(Function),
-    });
-
     expect(screen.getByTestId("messages").textContent).toBe("2");
   });
 
   test("tracks anonymous work when no project ID", async () => {
-    const mockMessages = [{ id: "1", role: "user", content: "Hello" }];
-
-    (useAIChat as any).mockReturnValue({
-      ...mockUseAIChat,
-      messages: mockMessages,
-    });
+    const mockMessages = [{ id: "1", role: "user" as const, content: "Hello" }];
 
     render(
-      <ChatProvider>
+      <ChatProvider initialMessages={mockMessages}>
         <TestComponent />
       </ChatProvider>
     );
@@ -135,15 +96,10 @@ describe("ChatContext", () => {
   });
 
   test("does not track anonymous work when project ID exists", async () => {
-    const mockMessages = [{ id: "1", role: "user", content: "Hello" }];
-
-    (useAIChat as any).mockReturnValue({
-      ...mockUseAIChat,
-      messages: mockMessages,
-    });
+    const mockMessages = [{ id: "1", role: "user" as const, content: "Hello" }];
 
     render(
-      <ChatProvider projectId="test-project">
+      <ChatProvider projectId="test-project" initialMessages={mockMessages}>
         <TestComponent />
       </ChatProvider>
     );
@@ -151,33 +107,6 @@ describe("ChatContext", () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     expect(anonTracker.setHasAnonWork).not.toHaveBeenCalled();
-  });
-
-  test("passes through AI chat functionality", () => {
-    const mockHandleInputChange = vi.fn();
-    const mockHandleSubmit = vi.fn();
-
-    (useAIChat as any).mockReturnValue({
-      ...mockUseAIChat,
-      handleInputChange: mockHandleInputChange,
-      handleSubmit: mockHandleSubmit,
-      status: "loading",
-    });
-
-    render(
-      <ChatProvider>
-        <TestComponent />
-      </ChatProvider>
-    );
-
-    expect(screen.getByTestId("status").textContent).toBe("loading");
-
-    // Verify functions are passed through
-    const textarea = screen.getByTestId("input");
-    const form = screen.getByTestId("form");
-
-    expect(textarea).toBeDefined();
-    expect(form).toBeDefined();
   });
 
   test("initializes agentMessageHistory from initialAgentEventRuns", () => {
@@ -223,25 +152,5 @@ describe("ChatContext", () => {
     );
 
     expect(screen.getByTestId("agent-history-runs").textContent).toBe("0");
-  });
-
-  test("handles tool calls", () => {
-    let onToolCallHandler: any;
-
-    (useAIChat as any).mockImplementation((config: any) => {
-      onToolCallHandler = config.onToolCall;
-      return mockUseAIChat;
-    });
-
-    render(
-      <ChatProvider>
-        <TestComponent />
-      </ChatProvider>
-    );
-
-    const toolCall = { toolName: "test", args: {} };
-    onToolCallHandler({ toolCall });
-
-    expect(mockHandleToolCall).toHaveBeenCalledWith(toolCall);
   });
 });

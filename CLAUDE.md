@@ -31,19 +31,12 @@ npm run db:reset        # Force reset Prisma migrations
 
 ### Core Data Flow
 
-**Single-agent mode:**
-
-1. User describes component in chat → `/api/chat` route streams Claude response
-2. Claude uses `str_replace_editor` tool to modify files in the VirtualFileSystem
-3. FileSystemContext updates state → PreviewFrame renders component with Babel transpilation
-4. Projects persist to SQLite (authenticated) or localStorage (anonymous)
-
-**Multi-agent mode (default):**
-
 1. User describes component → `/api/chat/multi-agent` route
 2. LangGraph StateGraph orchestrates: Design agent → Engineer agent → QA agent (with revision loop if needed)
 3. Agent events are SSE-streamed to the client and displayed per-agent in the chat UI
-4. Engineer agent uses `str_replace_editor` to modify files → same preview pipeline as single-agent
+4. Engineer agent uses `str_replace_editor` to modify files in the VirtualFileSystem
+5. FileSystemContext updates state → PreviewFrame renders component with Babel transpilation
+6. Projects persist to SQLite (authenticated) or localStorage (anonymous)
 
 ### Key Directories
 
@@ -76,7 +69,6 @@ Required in `.env`:
 
 - `ANTHROPIC_API_KEY` - Claude API key (falls back to mock if missing)
 - `JWT_SECRET` - Secret for session tokens
-- `NEXT_PUBLIC_ENABLE_SINGLE_AGENT` - Set to `"true"` to show single/multi-agent toggle in the UI (multi-agent is the default)
 
 ## Testing
 

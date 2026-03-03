@@ -15,7 +15,6 @@ export function ChatInterface() {
     handleInputChange,
     handleSubmit,
     status,
-    agentMode,
     agentMessages,
     agentMessageHistory,
     isMultiAgentRunning,
@@ -43,17 +42,15 @@ export function ChatInterface() {
       ) : (
         <ScrollArea ref={scrollAreaRef} className="flex-1 overflow-hidden">
           <div className="pr-4">
-            <MessageList messages={messages} isLoading={isStreaming && agentMode === "single"} />
-            {agentMode === "multi" && (
-              <>
-                {agentMessageHistory.map((run, i) => (
-                  <AgentActivityFeed key={`history-${i}`} agentMessages={run} isRunning={false} />
-                ))}
-                {agentMessages.length > 0 && (
-                  <AgentActivityFeed agentMessages={agentMessages} isRunning={isMultiAgentRunning} />
-                )}
-              </>
-            )}
+            <MessageList messages={messages} isLoading={false} />
+            <>
+              {agentMessageHistory.map((run, i) => (
+                <AgentActivityFeed key={`history-${i}`} agentMessages={run} isRunning={false} />
+              ))}
+              {agentMessages.length > 0 && (
+                <AgentActivityFeed agentMessages={agentMessages} isRunning={isMultiAgentRunning} />
+              )}
+            </>
           </div>
         </ScrollArea>
       )}
