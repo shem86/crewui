@@ -27,7 +27,7 @@ function extractTextContent(content: string | Array<{ type: string; text?: strin
 
 // Graph state definition
 const MAX_RETRIES = 1; // Max times to nudge an agent that didn't use tools
-const MAX_TOOL_LOOPS = 15; // Max tool-call round-trips per agent before forcing next phase
+const MAX_TOOL_LOOPS = 8; // Max tool-call round-trips per agent before forcing next phase
 const WorkflowState = Annotation.Root({
   ...MessagesAnnotation.spec,
   designSpec: Annotation<string>({ reducer: (_, b) => b, default: () => "" }),
@@ -322,7 +322,7 @@ export function buildMultiAgentGraph(
         agent: AgentRole.QA,
         content: `Revision needed (iteration ${iteration}/${MAX_ITERATIONS}). Sending back to Engineer...`,
       });
-      return { reviewNotes, iterationCount: iteration, currentAgent: "engineer", engineerStartIdx: -1, engineerToolLoops: 0 };
+      return { reviewNotes, iterationCount: iteration, currentAgent: "engineer", engineerStartIdx: -1, engineerToolLoops: 0, engineerRetries: 0 };
     }
 
     onEvent?.({

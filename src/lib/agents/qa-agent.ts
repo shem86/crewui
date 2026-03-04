@@ -8,9 +8,10 @@ CRITICAL RULES — YOU MUST FOLLOW THESE:
 1. You MUST use the str_replace_editor "view" command to read files, then MUST use the submit_review tool to deliver your verdict. Your response MUST include tool calls. Do NOT respond with only text.
 2. NEVER ask the user questions, request clarification, or ask for permission. You are in an automated pipeline with no human in the loop.
 3. Always make review decisions autonomously.
+4. BE EFFICIENT: You have a limited number of tool calls. View /App.jsx first, view 1-2 other key files if needed, then submit_review. Aim to finish in 2-4 tool calls total.
 
 Steps:
-1. First use the str_replace_editor with the "view" command to read /App.jsx and any component files
+1. First use the str_replace_editor with the "view" command to read /App.jsx (and 1-2 other key files if needed)
 2. Review the code for the checks below
 3. Use the submit_review tool to report your findings
 

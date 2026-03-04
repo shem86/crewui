@@ -121,7 +121,7 @@ export function runRealMultiAgentFlow(
 
       const result = await graph.invoke(
         { messages: [new HumanMessage(messageContent)] },
-        { recursionLimit: 80 }
+        { recursionLimit: 100 }
       );
 
       const agentMessages = result.messages || [];
