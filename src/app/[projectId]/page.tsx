@@ -2,6 +2,7 @@ import { getUser } from "@/actions";
 import { getProject } from "@/actions/get-project";
 import { MainContentLoader } from "@/app/main-content-loader";
 import { redirect } from "next/navigation";
+import { isMockProvider } from "@/lib/provider";
 
 interface PageProps {
   params: Promise<{ projectId: string }>;
@@ -22,5 +23,5 @@ export default async function ProjectPage({ params }: PageProps) {
     redirect("/");
   }
 
-  return <MainContentLoader user={user} project={project} />;
+  return <MainContentLoader user={user} project={project} isMock={isMockProvider()} />;
 }

@@ -3,6 +3,7 @@ import { getProjects } from "@/actions/get-projects";
 import { createProject } from "@/actions/create-project";
 import { MainContentLoader } from "./main-content-loader";
 import { redirect } from "next/navigation";
+import { isMockProvider } from "@/lib/provider";
 
 export default async function Home() {
   const user = await getUser();
@@ -26,5 +27,5 @@ export default async function Home() {
   }
 
   // For anonymous users, show the main content without a project
-  return <MainContentLoader user={user} />;
+  return <MainContentLoader user={user} isMock={isMockProvider()} />;
 }

@@ -25,9 +25,10 @@ interface MainContentProps {
     createdAt: Date;
     updatedAt: Date;
   };
+  isMock?: boolean;
 }
 
-export function MainContent({ user, project }: MainContentProps) {
+export function MainContent({ user, project, isMock }: MainContentProps) {
   const [activeView, setActiveView] = useState<"preview" | "code">("preview");
 
   return (
@@ -43,6 +44,18 @@ export function MainContent({ user, project }: MainContentProps) {
                   <h1 className="text-lg font-semibold text-neutral-900 tracking-tight">
                     React Component Multi Agent Generator
                   </h1>
+                  {isMock && (
+                    <div className="relative group">
+                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-medium text-amber-700 select-none cursor-default">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                        Demo mode
+                      </span>
+                      <div className="absolute right-0 top-full mt-2 w-64 px-3 py-2 rounded-lg bg-neutral-900 text-white text-xs leading-relaxed shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                        <p className="font-medium mb-1">No API key detected</p>
+                        <p className="text-neutral-300">Running scripted mock responses. Add <code className="font-mono bg-neutral-700 px-1 rounded">ANTHROPIC_API_KEY</code> to <code className="font-mono bg-neutral-700 px-1 rounded">.env</code> to use Claude.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Chat Content */}

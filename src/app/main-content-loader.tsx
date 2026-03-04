@@ -21,8 +21,9 @@ interface MainContentLoaderProps {
     createdAt: Date;
     updatedAt: Date;
   };
+  isMock?: boolean;
 }
 
-export function MainContentLoader({ user, project }: MainContentLoaderProps) {
-  return <MainContent user={user} project={project} />;
+export function MainContentLoader({ user, project, isMock }: MainContentLoaderProps) {
+  return <MainContent user={user} project={project} isMock={isMock} />;
 }
