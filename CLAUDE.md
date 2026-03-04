@@ -32,11 +32,23 @@ npm run db:reset        # Force reset Prisma migrations
 ### Core Data Flow
 
 1. User describes component → `/api/chat/multi-agent` route
-2. LangGraph StateGraph orchestrates: Design agent → Engineer agent → QA agent (with revision loop if needed)
+2. LangGraph StateGraph orchestrates agents (mode determines routing — see below)
 3. Agent events are SSE-streamed to the client and displayed per-agent in the chat UI
 4. Engineer agent uses `str_replace_editor` to modify files in the VirtualFileSystem
 5. FileSystemContext updates state → PreviewFrame renders component with Babel transpilation
 6. Projects persist to SQLite (authenticated) or localStorage (anonymous)
+
+### Workflow Modes
+
+Two modes are selectable via the toggle in the empty state (locked once a conversation starts):
+
+- **Pipeline** (default) — hardcoded Design → Engineer → QA sequence
+- **Supervisor** — an LLM Supervisor node runs first, analyzes the request, and picks one of three routes:
+  - `full`: Design → Engineer → QA
+  - `engineer_qa`: Engineer → QA (skips design for simple changes)
+  - `engineer_only`: Engineer only (for trivial edits)
+
+The `mode` field flows: `ChatContext` → fetch body → `validateChatRequest` → `route.ts` → `runRealMultiAgentFlow` / `runMockMultiAgentFlow` → `buildMultiAgentGraph(fileSystem, onEvent, mode)`.
 
 ### Key Directories
 
@@ -50,9 +62,12 @@ npm run db:reset        # Force reset Prisma migrations
   - `contexts/` - FileSystemContext and ChatContext
   - `tools/` - AI tools (str-replace, file-manager)
   - `prompts/generation.tsx` - System prompt for component generation
-  - `agents/graph.ts` - LangGraph StateGraph (multi-agent workflow)
-  - `agents/types.ts` - Shared agent types (client-safe, no LangChain imports)
+  - `agents/graph.ts` - LangGraph StateGraph (multi-agent workflow); `buildMultiAgentGraph(fs, onEvent, mode)`
+  - `agents/types.ts` - Shared agent types + `WorkflowMode` (client-safe, no LangChain imports)
+  - `agents/supervisor-agent.ts` - Supervisor prompt + `supervisorRouteSchema` (Zod)
   - `agents/design-agent.ts`, `engineer-agent.ts`, `qa-agent.ts` - Agent prompts and tools
+  - `agents/real-flow.ts` - Runs the real graph; emits manual orchestrator start in pipeline mode only
+  - `agents/mock-flow.ts` - Mock workflow for no-API-key dev; supports both modes
 
 ### Database Schema (Prisma/SQLite)
 

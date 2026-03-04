@@ -13,7 +13,7 @@ Built on a base project from a [Claude Code in Action course](https://anthropic.
 
 ## Key Features
 
-- **Multi-agent workflow** — Design → Engineer → QA pipeline with automatic revision loop when code doesn't pass review
+- **Multi-agent workflow** — Two selectable modes: a fixed Design → Engineer → QA pipeline, or a Supervisor mode where an LLM decides the optimal route per request
 - **Real-time agent activity feed** — SSE-streamed events show each agent's progress, tool calls, and decisions as they happen
 - **Live preview** — in-browser rendering via Babel transpilation with hot reload on file changes
 - **Virtual file system** — all generated files exist in-memory, no disk writes
@@ -36,9 +36,13 @@ Instead of relying on a single LLM call, UIGen splits component generation acros
 | **Design Agent** | DesignCo | Plans component structure, props, state management, color palettes, and layout |
 | **Engineer Agent** | EngineerCo | Writes React + Tailwind code based on the design specification |
 | **QA Agent** | QACo | Reviews code for bugs, accessibility issues, and best practices |
-| **Orchestrator** | Supervisor | Routes tasks between agents and decides when output is ready |
+| **Supervisor** | — | Analyzes the request and picks the optimal workflow route (supervisor mode only) |
 
-### Workflow
+### Workflow Modes
+
+A toggle in the empty state (before first message) switches between modes. Once a conversation starts, the mode is locked for that session.
+
+**Pipeline mode** (default) — fixed sequence:
 
 ```txt
 User prompt → Design Agent → Engineer Agent → QA Agent
@@ -53,13 +57,26 @@ User prompt → Design Agent → Engineer Agent → QA Agent
                                                   (max 2 iterations)
 ```
 
+**Supervisor mode** — LLM picks the route based on the request:
+
+```txt
+User prompt → Supervisor → one of three routes:
+                │
+                ├── "full"          → Design → Engineer → QA  (new components, major redesigns)
+                ├── "engineer_qa"   → Engineer → QA           (bug fixes, tweaks to existing code)
+                └── "engineer_only" → Engineer                 (trivial edits, text changes)
+```
+
+The Supervisor's reasoning is visible in the chat as an Orchestrator message before the chosen agents run.
+
 ### Technical Highlights
 
 - **LangGraph.js `StateGraph`** — the workflow is a compiled state machine with conditional edges for tool-call routing, nudge/retry logic, and the QA revision loop (`src/lib/agents/graph.ts`)
 - **SSE streaming** — agent events (`agent_start`, `agent_message`, `agent_tool_call`, `agent_done`) are streamed to the client in real time via the `/api/chat/multi-agent` endpoint
 - **Iteration limits** — the QA → Engineer revision loop is capped at 2 iterations to prevent runaway loops
 - **Cost-conscious defaults** — uses Claude Haiku 4.5 by default to keep API costs low (assuming an api-key is provided as env var); upgrading to a smarter model (e.g. Sonnet) will produce better results
-- **Client/server type separation** — shared types live in `src/lib/agents/types.ts` (no LangChain imports) to avoid bundling Node.js-only dependencies into client code
+- **Client/server type separation** — shared types (including `WorkflowMode`) live in `src/lib/agents/types.ts` (no LangChain imports) to avoid bundling Node.js-only dependencies into client code
+- **Supervisor routing** — `supervisorRouteSchema` (Zod) drives structured LLM output in `src/lib/agents/supervisor-agent.ts`; the graph conditionally adds a supervisor node when `mode === "supervisor"` (`src/lib/agents/graph.ts`)
 
 ---
 
@@ -139,7 +156,7 @@ npm run test     # Run test suite
 
 Base project from a [Claude Code course](https://www.udemy.com/course/claude-code/). Significant personal additions:
 
-- Multi-agent architecture with LangChain.js / LangGraph.js (design, engineer, QA agents + orchestrator)
+- Multi-agent architecture with LangChain.js / LangGraph.js (design, engineer, QA agents + supervisor with pipeline/supervisor mode toggle)
 - Real-time agent activity feed with SSE streaming
 - GitHub Actions + Claude Code CI/CD integration with Playwright MCP
 - Custom Claude Code skills (gh-actions, langgraph, refactor)
