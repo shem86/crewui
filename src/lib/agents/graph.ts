@@ -113,10 +113,10 @@ export function buildMultiAgentGraph(
   }
 
   // Route design agent: if tool calls pending, run tools; if no tools and retries left, nudge; otherwise move on
+  // Note: design doesn't loop after tools (design_tools → design_post → engineer), so no limit check needed here
   function routeDesign(state: WorkflowStateType) {
     const lastMsg = state.messages[state.messages.length - 1];
     if (lastMsg.getType() === "ai" && (lastMsg as AIMessage).tool_calls?.length) {
-      if (state.designToolLoops >= MAX_TOOL_LOOPS) return "engineer";
       return "design_tools";
     }
     if (state.designRetries < MAX_RETRIES) {
@@ -206,17 +206,25 @@ export function buildMultiAgentGraph(
     return { messages: [response], currentAgent: "engineer", engineerStartIdx: startIdx, engineerToolLoops: state.engineerToolLoops + 1 };
   }
 
-  // Route engineer: if tool calls, run tools; if no tools and retries left, nudge; otherwise move on
+  // Route engineer: if tool calls, always run tools (never skip — avoids orphaned tool_use);
+  // if no tools, check if agent already worked (natural stop) or needs nudge
   function routeEngineer(state: WorkflowStateType) {
     const lastMsg = state.messages[state.messages.length - 1];
     if (lastMsg.getType() === "ai" && (lastMsg as AIMessage).tool_calls?.length) {
-      if (state.engineerToolLoops >= MAX_TOOL_LOOPS) return "qa";
-      return "engineer_tools";
+      return "engineer_tools"; // Always execute — limit checked AFTER tools complete
     }
+    // If agent already used tools (toolLoops > 1), this is a natural "I'm done" signal — don't nudge
+    if (state.engineerToolLoops > 1) return "qa";
     if (state.engineerRetries < MAX_RETRIES) {
       return "engineer_nudge";
     }
     return "qa";
+  }
+
+  // After engineer tools execute, check if we've hit the loop limit
+  function routeAfterEngineerTools(state: WorkflowStateType) {
+    if (state.engineerToolLoops >= MAX_TOOL_LOOPS) return "qa";
+    return "engineer";
   }
 
   // Nudge engineer agent to use tools
@@ -267,17 +275,25 @@ export function buildMultiAgentGraph(
     return { messages: [response], currentAgent: "qa", qaStartIdx: startIdx, qaToolLoops: state.qaToolLoops + 1 };
   }
 
-  // Route QA: if tool calls, run tools; if no tools and retries left, nudge; otherwise decide
+  // Route QA: if tool calls, always run tools (never skip — avoids orphaned tool_use);
+  // if no tools, check if agent already worked (natural stop) or needs nudge
   function routeQA(state: WorkflowStateType) {
     const lastMsg = state.messages[state.messages.length - 1];
     if (lastMsg.getType() === "ai" && (lastMsg as AIMessage).tool_calls?.length) {
-      if (state.qaToolLoops >= MAX_TOOL_LOOPS) return "qa_decision";
-      return "qa_tools";
+      return "qa_tools"; // Always execute — limit checked AFTER tools complete
     }
+    // If agent already used tools (toolLoops > 1), this is a natural "I'm done" signal — don't nudge
+    if (state.qaToolLoops > 1) return "qa_decision";
     if (state.qaRetries < MAX_RETRIES) {
       return "qa_nudge";
     }
     return "qa_decision";
+  }
+
+  // After QA tools execute, check if we've hit the loop limit
+  function routeAfterQATools(state: WorkflowStateType) {
+    if (state.qaToolLoops >= MAX_TOOL_LOOPS) return "qa_decision";
+    return "qa";
   }
 
   // Nudge QA agent to use tools
@@ -375,14 +391,20 @@ export function buildMultiAgentGraph(
       engineer_nudge: "engineer_nudge",
       qa: "qa",
     })
-    .addEdge("engineer_tools", "engineer")
+    .addConditionalEdges("engineer_tools", routeAfterEngineerTools, {
+      engineer: "engineer",
+      qa: "qa",
+    })
     .addEdge("engineer_nudge", "engineer")
     .addConditionalEdges("qa", routeQA, {
       qa_tools: "qa_tools",
       qa_nudge: "qa_nudge",
       qa_decision: "qa_decision",
     })
-    .addEdge("qa_tools", "qa")
+    .addConditionalEdges("qa_tools", routeAfterQATools, {
+      qa: "qa",
+      qa_decision: "qa_decision",
+    })
     .addEdge("qa_nudge", "qa")
     .addConditionalEdges("qa_decision", routeQADecision, {
       engineer: "engineer",
