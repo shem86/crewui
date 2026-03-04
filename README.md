@@ -140,15 +140,29 @@ Automated guardrails that run before or after Claude's tool calls. Configured in
 ## Quick Start
 
 ```bash
-npm run setup    # Install deps, generate Prisma client, run migrations
+npm run setup    # Install deps, generate Prisma client, run migrations, seed DB
 npm run dev      # Start dev server (http://localhost:3000)
 npm run test     # Run test suite
 ```
+
+`npm run setup` automatically seeds the database with 10 demo projects (Hero Card, Slider, Tree View, etc.) and creates a demo user:
+
+| Field | Value |
+| ----- | ----- |
+| Email | `demo@example.com` |
+| Password | `demo` |
 
 **Environment variables** (`.env`):
 
 - `ANTHROPIC_API_KEY` — Claude API key (optional; falls back to mock responses if missing)
 - `JWT_SECRET` — secret for session tokens
+
+**Updating the seed data:**
+
+```bash
+npx tsx scripts/export-seed-data.ts   # Dump current DB projects → prisma/seed-data.json
+# then commit prisma/seed-data.json
+```
 
 ---
 
