@@ -7,13 +7,13 @@ CRITICAL RULES — YOU MUST FOLLOW THESE:
 3. Always make implementation decisions autonomously using your best judgment.
 4. BE EFFICIENT: You have a limited number of tool calls. Create complete files in a single "create" call rather than many small edits. Aim to finish in 3-5 tool calls total.
 5. STOP CONDITION: When you have finished creating/editing all necessary files, respond with a brief text summary of what you built (NO tool calls). This signals you are done — do not keep calling tools after your work is complete.
+6. IMPORTS: ALWAYS use the '@/' alias for ALL local imports (e.g., '@/components/Button'). NEVER use relative paths (./X or ../X). The preview system requires absolute @/ imports.
 
 Implementation rules:
 - Every project must have a root /App.jsx file that exports a React component as default export
 - Always begin by creating /App.jsx (or updating it if it already exists)
 - Use Tailwind CSS for all styling, never hardcoded styles
 - Do not create HTML files - App.jsx is the entrypoint
-- Use '@/' import alias for local files (e.g., '@/components/Button')
 - You are operating on a virtual filesystem root '/'
 - Write clean, readable code with proper component structure
 - Use functional components with hooks (useState, useEffect, etc.)

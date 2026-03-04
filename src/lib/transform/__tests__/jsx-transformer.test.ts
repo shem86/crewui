@@ -400,6 +400,45 @@ test("integration: full pipeline handles components with CSS imports", () => {
   expect(html).toContain(".container { max-width: 1200px;");
 });
 
+// Relative import rewriting tests
+test("transformJSX rewrites ./Foo to @/Foo for root-level files", () => {
+  const code = `import Foo from './Foo'; export default function App() { return null; }`;
+  const result = transformJSX(code, "/App.jsx", new Set());
+
+  expect(result.error).toBeUndefined();
+  expect(result.code).toContain("@/Foo");
+  expect(result.code).not.toContain("'./Foo'");
+});
+
+test("transformJSX rewrites ./Sibling to @/components/Sibling for subdirectory files", () => {
+  const code = `import Sibling from './Sibling'; export default function X() { return null; }`;
+  const result = transformJSX(code, "/components/X.jsx", new Set());
+
+  expect(result.error).toBeUndefined();
+  expect(result.code).toContain("@/components/Sibling");
+  expect(result.code).not.toContain("'./Sibling'");
+});
+
+test("transformJSX resolves ../Button to @/components/Button for nested files", () => {
+  const code = `import Button from '../Button'; export default function Foo() { return null; }`;
+  const result = transformJSX(code, "/components/accordion/Foo.jsx", new Set());
+
+  expect(result.error).toBeUndefined();
+  expect(result.code).toContain("@/components/Button");
+  expect(result.code).not.toContain("'../Button'");
+});
+
+test("transformJSX does not rewrite CSS relative imports", () => {
+  const code = `import './styles.css'; import Foo from './Foo'; export default function App() {}`;
+  const result = transformJSX(code, "/App.jsx", new Set());
+
+  expect(result.error).toBeUndefined();
+  // CSS import is stripped entirely, not rewritten
+  expect(result.code).not.toContain("styles.css");
+  // Non-CSS relative import is rewritten to @/ path
+  expect(result.code).toContain("@/Foo");
+});
+
 // Error handling tests
 test("createImportMap handles syntax errors gracefully", () => {
   // Mock Babel to throw error for BadComponent

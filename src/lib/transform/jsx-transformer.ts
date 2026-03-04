@@ -44,6 +44,23 @@ export function transformJSX(
     // Remove CSS imports from code
     processedCode = processedCode.replace(cssImportRegex, "");
 
+    // Rewrite relative imports to @/ absolute paths so blob URL modules can resolve them.
+    // Blob URL modules cannot resolve relative imports via import maps; @/ bare specifiers can.
+    const fileDir = filename.substring(0, filename.lastIndexOf('/'));
+    const dirParts = fileDir.split('/').filter(Boolean);
+    processedCode = processedCode.replace(
+      /((?:from|import)\s+)(['"])(\.\.?\/[^'"]+)(['"])/g,
+      (match, keyword, openQuote, relativePath, closeQuote) => {
+        if (relativePath.endsWith('.css')) return match;
+        const parts = [...dirParts];
+        for (const seg of relativePath.split('/')) {
+          if (seg === '..') parts.pop();
+          else if (seg !== '.') parts.push(seg);
+        }
+        return `${keyword}${openQuote}@/${parts.join('/')}${closeQuote}`;
+      }
+    );
+
     let match;
     while ((match = importRegex.exec(code)) !== null) {
       // Skip CSS files from regular imports
