@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useFileSystem } from "@/lib/contexts/file-system-context";
 import { createImportMap, createPreviewHTML } from "@/lib/transform/jsx-transformer";
 import { AlertCircle } from "lucide-react";
@@ -138,5 +138,20 @@ export function PreviewFrame() {
     );
   }
 
-  return <iframe ref={iframeRef} className="w-full h-full border-0 bg-white" title="Preview" />;
+  const handleIframeLoad = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentDocument) return;
+    iframe.contentDocument.addEventListener("pointerdown", () => {
+      document.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, cancelable: true }));
+    });
+  }, []);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      className="w-full h-full border-0 bg-white"
+      title="Preview"
+      onLoad={handleIframeLoad}
+    />
+  );
 }

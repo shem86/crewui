@@ -1,9 +1,76 @@
 "use client";
 
+import { useState } from "react";
 import { Message } from "ai";
 import { cn } from "@/lib/utils";
-import { User, Bot, Loader2 } from "lucide-react";
+import { User, Bot, Loader2, AlertTriangle, ChevronDown } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
+import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
+
+function isErrorMessage(message: Message): boolean {
+  return (
+    message.role === "assistant" &&
+    (message.id.startsWith("error-") || message.id.startsWith("multi-agent-error-"))
+  );
+}
+
+function parseErrorContent(content: string): { summary: string; details: string } {
+  // Try to extract inner JSON error message
+  const jsonMatch = content.match(/"message"\s*:\s*"([^"]+)"/);
+  if (jsonMatch) {
+    return { summary: jsonMatch[1], details: content };
+  }
+  // Try to extract message after last colon-separated segment
+  const colonParts = content.split(": ");
+  if (colonParts.length > 2) {
+    return { summary: colonParts.slice(-1)[0], details: content };
+  }
+  return { summary: content, details: content };
+}
+
+function ErrorBubble({ message }: { message: Message }) {
+  const [open, setOpen] = useState(false);
+  const { summary, details } = parseErrorContent(message.content);
+  const showDetails = summary !== details;
+
+  return (
+    <div className="flex gap-4 justify-start">
+      <div className="flex-shrink-0">
+        <div className="w-9 h-9 rounded-lg bg-red-50 border border-red-200 shadow-sm flex items-center justify-center">
+          <AlertTriangle className="h-4.5 w-4.5 text-red-500" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 max-w-[85%] min-w-0 items-start">
+        <div className="rounded-xl px-4 py-3 bg-red-50 border border-red-200 shadow-sm text-sm">
+          <p className="font-medium text-red-800">Something went wrong during generation</p>
+          <p className="text-red-600 mt-1 break-all">{summary}</p>
+          {showDetails && (
+            <Collapsible open={open} onOpenChange={setOpen} className="mt-2">
+              <CollapsibleTrigger className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 cursor-pointer">
+                <ChevronDown
+                  className={cn(
+                    "w-3 h-3 transition-transform duration-200",
+                    open && "rotate-180"
+                  )}
+                />
+                {open ? "Hide details" : "Show details"}
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <pre className="mt-2 p-2 bg-red-100/50 rounded-md text-xs text-red-700 whitespace-pre-wrap break-all overflow-x-auto max-h-48 overflow-y-auto">
+                  {details}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface MessageBubbleProps {
   message: Message;
@@ -12,6 +79,10 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, isLoading, isLast }: MessageBubbleProps) {
+  if (isErrorMessage(message)) {
+    return <ErrorBubble message={message} />;
+  }
+
   return (
     <div
       className={cn("flex gap-4", message.role === "user" ? "justify-end" : "justify-start")}
