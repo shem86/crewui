@@ -161,6 +161,7 @@ export function ChatInterface() {
           handleInputChange={handleInputChange}
           handleSubmit={handleSubmit}
           isLoading={isLoading}
+          hasMessages={hasMessages}
         />
       </div>
     </div>

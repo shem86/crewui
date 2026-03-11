@@ -8,6 +8,7 @@ interface MessageInputProps {
   handleInputChange: (e: ChangeEvent<HTMLTextAreaElement>) => void;
   handleSubmit: (e: FormEvent<HTMLFormElement>) => void;
   isLoading: boolean;
+  hasMessages?: boolean;
 }
 
 export function MessageInput({
@@ -15,6 +16,7 @@ export function MessageInput({
   handleInputChange,
   handleSubmit,
   isLoading,
+  hasMessages,
 }: MessageInputProps) {
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -33,7 +35,7 @@ export function MessageInput({
           value={input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          placeholder="Describe the React component you want to create..."
+          placeholder={hasMessages ? "Ask a follow-up or request changes..." : "Describe the React component you want to create..."}
           disabled={isLoading}
           className="w-full min-h-[80px] max-h-[200px] pl-4 pr-14 py-3.5 rounded-xl border border-neutral-200 bg-neutral-50/50 text-neutral-900 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500/50 focus:bg-white transition-all placeholder:text-neutral-400 text-[15px] font-normal shadow-sm"
           rows={3}

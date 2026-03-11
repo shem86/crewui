@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn as signInAction, signUp as signUpAction } from "@/actions";
 import { getAnonWorkData, clearAnonWork } from "@/lib/anon-work-tracker";
-import { getProjects } from "@/actions/get-projects";
 import { createProject } from "@/actions/create-project";
 
 export function useAuth() {
@@ -28,22 +27,7 @@ export function useAuth() {
       return;
     }
 
-    // Otherwise, find the user's most recent project
-    const projects = await getProjects();
-
-    if (projects.length > 0) {
-      router.push(`/${projects[0].id}`);
-      return;
-    }
-
-    // If no projects exist, create a new one
-    const newProject = await createProject({
-      name: `New Design #${~~(Math.random() * 100000)}`,
-      messages: [],
-      data: {},
-    });
-
-    router.push(`/${newProject.id}`);
+    router.push("/");
   };
 
   const signIn = async (email: string, password: string) => {

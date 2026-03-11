@@ -10,6 +10,7 @@ import { CodeEditor } from "@/components/editor/CodeEditor";
 import { PreviewFrame } from "@/components/preview/PreviewFrame";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HeaderActions } from "@/components/HeaderActions";
+import Link from "next/link";
 
 interface MainContentProps {
   user?: {
@@ -110,9 +111,9 @@ export function MainContent({ user, project, isMock }: MainContentProps) {
               <div className="h-full flex flex-col bg-white">
                 {/* Chat Header */}
                 <div className="h-14 flex items-center justify-between px-6 border-b border-neutral-200/60">
-                  <h1 className="text-lg font-semibold text-neutral-900 tracking-tight">
-                    Multi-Agent React Component Generator
-                  </h1>
+                  <Link href="/" className="text-lg font-semibold text-neutral-900 tracking-tight hover:opacity-75 transition-opacity">
+                    CrewUI
+                  </Link>
                   {isMock && (
                     <div className="relative group">
                       <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-medium text-amber-700 select-none cursor-default">
