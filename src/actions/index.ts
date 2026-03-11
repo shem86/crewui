@@ -96,6 +96,19 @@ export async function signOut() {
   redirect("/");
 }
 
+export async function loginAsGuest(): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { email: "demo@example.com" },
+  });
+
+  if (!user) {
+    throw new Error("Demo user not found. Run: npm run db:seed");
+  }
+
+  await createSession(user.id, user.email);
+  redirect("/");
+}
+
 export async function getUser() {
   const session = await getSession();
 

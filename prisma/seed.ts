@@ -61,15 +61,18 @@ async function main() {
   for (const project of projects) {
     const existing = await prisma.project.findUnique({ where: { id: project.id } });
 
-    if (existing) {
+    if (existing?.userId === user.id) {
       skipped++;
       console.log(`  skip  [${project.id}] ${project.name}`);
       continue;
     }
 
+    // Either doesn't exist (use seed ID) or belongs to another user (auto-generate new ID)
+    const useFixedId = !existing;
+
     await prisma.project.create({
       data: {
-        id: project.id,
+        ...(useFixedId ? { id: project.id } : {}),
         name: project.name,
         userId: user.id,
         messages: JSON.stringify(project.messages),
@@ -79,7 +82,7 @@ async function main() {
     });
 
     created++;
-    console.log(`  create [${project.id}] ${project.name}`);
+    console.log(`  create [${existing ? "dup" : project.id}] ${project.name}`);
   }
 
   console.log(`\nSeed complete: ${created} created, ${skipped} skipped.`);
