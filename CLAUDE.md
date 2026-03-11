@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-UIGen is an AI-powered React component generator with live preview and multi-agent orchestration. Users describe components in natural language, a team of specialized agents (Design, Engineer, QA) collaborates via LangGraph to generate the code, and a live preview renders it in real-time.
+CrewUI is a multi-agent React component generator with live preview and intelligent supervisor routing. Users describe components in natural language, a team of specialized agents (Design, Engineer, QA) collaborates via LangGraph to generate the code, and a live preview renders it in real-time.
 
 **Stack:** Next.js 15, React 19, TypeScript, Tailwind CSS v4, SQLite + Prisma, Anthropic Claude (haiku-4.5), LangChain.js, LangGraph.js
 

@@ -1,6 +1,6 @@
-# UIGen — Multi-Agent AI Component Generator
+# CrewUI — Multi-Agent React Component Generator
 
-A full-stack React component generator powered by **multi-agent orchestration** using LangChain.js and LangGraph.js. Users describe components in natural language, and a team of specialized AI agents — Design, Engineer, and QA — collaborates to generate production-ready React code with live preview.
+A team of AI agents — Design, Engineer, and QA — collaborates to generate production-ready React components. Powered by **multi-agent orchestration** using LangChain.js and LangGraph.js, with live preview and intelligent supervisor routing.
 
 Built on a base project from a [Claude Code in Action course](https://anthropic.skilljar.com/claude-code-in-action), with significant additions including the multi-agent architecture, GitHub Actions CI/CD integration, and real-time agent activity streaming.
 
@@ -27,7 +27,7 @@ Built on a base project from a [Claude Code in Action course](https://anthropic.
 
 ## Multi-Agent Architecture
 
-Instead of relying on a single LLM call, UIGen splits component generation across three specialized agents. Each agent has a focused system prompt and dedicated tools, which improves output quality through separation of concerns and built-in review.
+Instead of relying on a single LLM call, CrewUI splits component generation across three specialized agents. Each agent has a focused system prompt and dedicated tools, which improves output quality through separation of concerns and built-in review.
 
 ### Agent Roles
 

@@ -381,6 +381,7 @@ export function buildMultiAgentGraph(
     let reasoning = "Defaulting to full pipeline.";
 
     try {
+      // @ts-expect-error TS2589: excessive type depth with complex Zod schema
       const supervisorModel = model.withStructuredOutput(supervisorRouteSchema);
       const systemMsg = new SystemMessage(SUPERVISOR_SYSTEM_PROMPT);
       const userMessages = state.messages.filter(m => m.getType() === "human");

@@ -1,6 +1,6 @@
 # Write Tests Command
 
-Write tests for components or utilities in this UIGen project.
+Write tests for components or utilities in this CrewUI project.
 
 ## Steps
 

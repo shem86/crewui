@@ -30,9 +30,9 @@ export function LandingPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="flex flex-col items-center gap-6 text-center max-w-md">
         <div className="flex flex-col items-center gap-2">
-          <h1 className="text-4xl font-bold tracking-tight">UIGen</h1>
+          <h1 className="text-4xl font-bold tracking-tight">CrewUI</h1>
           <p className="text-muted-foreground text-lg">
-            AI-powered React component generation with live preview
+            Multi-agent React component generation with live preview
           </p>
         </div>
 

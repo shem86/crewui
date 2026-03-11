@@ -1,6 +1,6 @@
 # Dependency Audit Command
 
-Audit and update vulnerable dependencies in this UIGen project.
+Audit and update vulnerable dependencies in this CrewUI project.
 
 ## Steps
 

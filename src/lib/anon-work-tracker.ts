@@ -1,6 +1,6 @@
 // Simple utility to track if anonymous user has created work
-const STORAGE_KEY = "uigen_has_anon_work";
-const DATA_KEY = "uigen_anon_data";
+const STORAGE_KEY = "crewui_has_anon_work";
+const DATA_KEY = "crewui_anon_data";
 
 export function setHasAnonWork(messages: any[], fileSystemData: any) {
   if (typeof window === "undefined") return;
