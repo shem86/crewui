@@ -126,55 +126,12 @@ An orchestrator LLM decides which agent to invoke next. Minimal code, maximum fl
 
 **When to use**: Dynamic task routing where the order of agents depends on the input.
 
-### Using createAgent (v1)
+See [example-supervisor.md](example-supervisor.md) for a full working example.
 
-```typescript
-import { createSupervisor } from "@langchain/langgraph-supervisor";
-import { createAgent } from "langchain";
-import { ChatAnthropic } from "@langchain/anthropic";
-
-const model = new ChatAnthropic({ model: "claude-haiku-4-5" });
-
-const designAgent = createAgent({
-  model: "claude-haiku-4-5",
-  tools: [designTool],
-  name: "designer",
-  systemPrompt: "You are a UI/UX design expert.",
-});
-
-const engineerAgent = createAgent({
-  model: "claude-haiku-4-5",
-  tools: [strReplaceTool, fileManagerTool],
-  name: "engineer",
-  systemPrompt: "You are a React engineer.",
-});
-
-const supervisorGraph = createSupervisor({
-  agents: [designAgent, engineerAgent],
-  llm: model,
-  prompt: "Route design tasks to designer, implementation to engineer.",
-});
-
-const app = supervisorGraph.compile();
-const result = await app.invoke({
-  messages: [{ role: "user", content: "Build a todo app" }],
-});
-```
-
-### Using createReactAgent (Legacy)
-
-```typescript
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
-
-const designAgent = createReactAgent({
-  llm: model,
-  tools: [designTool],
-  name: "designer",
-  prompt: "You are a UI/UX design expert.",
-});
-
-// Same createSupervisor usage as above
-```
+Key points:
+- `createSupervisor` returns a **StateGraph** — MUST call `.compile()`
+- Each agent needs a unique `name` for the supervisor to route to it
+- Agents can be created with `createReactAgent` or `createAgent` (v1, requires `langchain` package)
 
 **Trade-offs**:
 - Extra LLM call per routing decision (supervisor must decide who goes next)

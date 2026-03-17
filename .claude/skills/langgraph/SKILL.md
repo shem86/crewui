@@ -1,6 +1,6 @@
 ---
 name: langgraph
-description: Expert-level guidance for designing, building, and debugging multi-agent systems using LangChain.js and LangGraph.js. Covers architecture philosophy (supervisor, swarm, custom graph, functional API), StateGraph API, Annotation/StateSchema/reducers, streaming (SSE, multiple modes, custom writer), tool calling (ToolNode, bindTools, tool()), checkpointing/memory, prebuilt agents (createAgent, createReactAgent, createSupervisor, createSwarm), human-in-the-loop (interrupt/Command), subgraphs, error handling, and production hardening. Use when the user mentions: multi-agent, multi agent, LangChain, LangGraph, agent orchestration, supervisor pattern, swarm agents, agent handoff, StateGraph, ToolNode, createReactAgent, createAgent, agent streaming, agent checkpointing, agent memory, agentic workflows, agent loops, functional API, entrypoint, interrupt, human-in-the-loop, or any LangChain/LangGraph library usage.
+description: "Expert-level guidance for designing, building, and debugging multi-agent systems using LangChain.js and LangGraph.js. Covers architecture philosophy (supervisor, swarm, custom graph, functional API), StateGraph API, Annotation/StateSchema/reducers, streaming (SSE, multiple modes, custom writer), tool calling (ToolNode, bindTools, tool()), structured output (withStructuredOutput), checkpointing/memory, prebuilt agents (createAgent, createReactAgent, createSupervisor, createSwarm), human-in-the-loop (interrupt/Command), subgraphs, error handling, and production hardening. Use when the user mentions: multi-agent, multi agent, LangChain, LangGraph, agent orchestration, supervisor pattern, swarm agents, agent handoff, StateGraph, ToolNode, createReactAgent, createAgent, agent streaming, agent checkpointing, agent memory, agentic workflows, agent loops, functional API, entrypoint, interrupt, human-in-the-loop, withStructuredOutput, structured output, or any LangChain/LangGraph library usage."
 ---
 
 # LangGraph Multi-Agent Expert
@@ -11,7 +11,7 @@ Deep expertise in multi-agent system design and implementation with LangChain.js
 
 Key changes to be aware of:
 
-- **`createAgent`** from `"langchain"` replaces `createReactAgent` from `@langchain/langgraph/prebuilt`. Uses `systemPrompt` (not `prompt`), supports middleware (HITL, summarization, PII redaction).
+- **`createAgent`** from `"langchain"` replaces `createReactAgent` from `@langchain/langgraph/prebuilt`. Uses `systemPrompt` (not `prompt`), supports middleware (HITL, summarization, PII redaction). **Requires the `langchain` package** (not included with `@langchain/langgraph`).
 - **`StateSchema`** with Zod is the recommended way to define state (alternative to `Annotation.Root`). Uses `ReducedValue`, `MessagesValue`.
 - **Functional API** (`entrypoint`, `task` from `@langchain/langgraph/func`) — imperative alternative to StateGraph for linear workflows.
 - **`interrupt()`** function for human-in-the-loop — pause graph, resume with `Command({ resume: ... })`.
@@ -23,7 +23,7 @@ Key changes to be aware of:
 Determine what the user needs:
 
 **Quick start / single agent with tools?**
-- Use `createAgent` from `"langchain"` (v1) or `createReactAgent` from `@langchain/langgraph/prebuilt` (legacy)
+- Use `createAgent` from `"langchain"` (v1, requires `langchain` package) or `createReactAgent` from `@langchain/langgraph/prebuilt`
 - Read [references/example-single-agent.md](references/example-single-agent.md)
 
 **Designing a multi-agent architecture?**
@@ -46,6 +46,10 @@ Determine what the user needs:
 - Use Functional API: `entrypoint` + `task` from `@langchain/langgraph/func`
 - Read [references/langgraph-patterns.md](references/langgraph-patterns.md) Functional API section or [references/multi-agent-architecture.md](references/multi-agent-architecture.md) Pattern 4
 
+**Need structured LLM output (routing, classification, extraction)?**
+- Use `model.withStructuredOutput(zodSchema)` — returns typed object, not a message
+- Read [references/langgraph-patterns.md](references/langgraph-patterns.md) Structured Output section
+
 **Need human approval before tool execution?**
 - Use `humanInTheLoopMiddleware` with `createAgent`, or `interrupt()` in graph nodes
 - Read [references/langgraph-patterns.md](references/langgraph-patterns.md) Human-in-the-Loop section
@@ -67,8 +71,8 @@ Determine what the user needs:
 - Read [references/langgraph-pitfalls.md](references/langgraph-pitfalls.md) for common pitfalls and fixes
 
 **Migrating from pre-v1 code?**
-- `createReactAgent` -> `createAgent`, `prompt` -> `systemPrompt`
-- Read [references/langgraph-pitfalls.md](references/langgraph-pitfalls.md) Version Migration section
+- `createReactAgent` -> `createAgent` (requires `langchain` package), `prompt` -> `systemPrompt`, `llm` -> `model` (accepts string), streaming node `"agent"` -> `"model"`
+- `Annotation.Root` -> `StateSchema` (optional, both are stable)
 
 **Building something end-to-end?**
 - Read all three references as needed throughout the process
@@ -102,7 +106,7 @@ import { StateSchema, ReducedValue, MessagesValue } from "@langchain/langgraph";
 import { entrypoint, task } from "@langchain/langgraph/func";
 // Prebuilt (legacy)
 import { createReactAgent, ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
-// Prebuilt (v1 — preferred)
+// Prebuilt (v1 — requires `langchain` package, not installed in this project)
 import { createAgent, humanInTheLoopMiddleware } from "langchain";
 // Multi-agent
 import { createSupervisor } from "@langchain/langgraph-supervisor";

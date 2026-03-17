@@ -50,7 +50,7 @@ const graph = new StateGraph(State)
   .addConditionalEdges("design", routeDesign, { design_tools: "design_tools", engineer: "engineer" })
   .addEdge("design_tools", "design")
   .addConditionalEdges("engineer", toolsCondition)
-  .addEdge("tools", "engineer")
+  .addEdge("engineer_tools", "engineer")
   .compile({ recursionLimit: 50 });
 ```
 

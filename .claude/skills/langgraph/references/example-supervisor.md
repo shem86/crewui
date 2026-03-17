@@ -44,11 +44,6 @@ const result = await app.invoke({
 - The supervisor makes an extra LLM call per routing decision (latency trade-off)
 - The supervisor `prompt` guides routing behavior — be specific about which agent handles what
 
-## Return Type Reference
+## Return Types
 
-| Function | Returns | Need `.compile()`? | Package |
-| -------- | ------- | ------------------ | ------- |
-| `createAgent` | Compiled graph | No | `langchain` |
-| `createReactAgent` | Compiled graph | No | `@langchain/langgraph/prebuilt` |
-| `createSupervisor` | `StateGraph` | Yes | `@langchain/langgraph-supervisor` |
-| `createSwarm` | `StateGraph` | Yes | `@langchain/langgraph-swarm` |
+See [langgraph-patterns.md](langgraph-patterns.md) Prebuilt Agents > Return Type Summary for the full table.

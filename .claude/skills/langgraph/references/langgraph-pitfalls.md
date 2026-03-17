@@ -2,17 +2,16 @@
 
 ## Table of Contents
 
-- [Bundling and Environment](#bundling-and-environment)
+- [Bundling and Environment](#bundling-and-environment) (incl. dynamic imports, edge runtime)
 - [State Management](#state-management)
 - [Streaming and SSE](#streaming-and-sse)
-- [Tool Calling](#tool-calling)
+- [Tool Calling](#tool-calling) (incl. Anthropic content blocks)
 - [Memory and Checkpointing](#memory-and-checkpointing)
 - [Graph Structure](#graph-structure)
 - [Human-in-the-Loop / Interrupts](#human-in-the-loop--interrupts)
 - [TypeScript Issues](#typescript-issues)
 - [Debugging Strategies](#debugging-strategies)
 - [Error Handling Best Practices](#error-handling-best-practices)
-- [Version Migration](#version-migration)
 - [Deployment](#deployment)
 
 ---
@@ -46,6 +45,21 @@ For browser environments, `@langchain/langgraph/web` provides a subset of the AP
 - **No file-based checkpointers** — only `MemorySaver` works in-browser
 
 Use the web build only for client-side graph execution that doesn't need persistence or HITL.
+
+### Dynamic Imports for Next.js
+
+**Symptom:** LangGraph code accidentally bundled into client or loaded eagerly, slowing startup.
+
+**Fix:** Use dynamic imports in server-side code that invokes the graph:
+```typescript
+// In your API route or server action
+export async function runWorkflow(input: string) {
+  const { buildMultiAgentGraph } = await import("@/lib/agents/graph");
+  const graph = buildMultiAgentGraph(fileSystem, onEvent, mode);
+  return graph.invoke({ messages: [new HumanMessage(input)] });
+}
+```
+This ensures LangGraph modules only load when the workflow is actually invoked, not at module evaluation time.
 
 ### Edge Runtime Incompatible
 
@@ -222,6 +236,31 @@ This sends errors back to the LLM as `ToolMessage` so it can retry.
 const modelWithTools = model.bindTools(tools);  // use modelWithTools, not model
 ```
 
+### Anthropic Content Blocks (Not Plain Strings)
+
+**Symptom:** `message.content` is `[object Object]` or processing fails when treating content as a string.
+
+**Cause:** Claude (ChatAnthropic) can return `content` as either a `string` or an `Array<{type: string, text?: string}>` (content blocks). Code that assumes `string` breaks.
+
+**Fix:** Always extract text safely:
+```typescript
+function extractTextContent(content: string | Array<{ type: string; text?: string }>): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((block) => block.type === "text" && block.text)
+      .map((block) => block.text!)
+      .join("\n");
+  }
+  return "";
+}
+
+// Use in nodes before processing content
+const text = extractTextContent(response.content);
+```
+
+This is especially important when passing content between agents or extracting results for downstream processing.
+
 ### Complex Zod Schemas Cause TS2589
 
 **Symptom:** `Type instantiation is excessively deep and possibly infinite` with `DynamicStructuredTool`.
@@ -240,35 +279,9 @@ const outerSchema = z.object({ a: innerSchema });
 
 ## Memory and Checkpointing
 
-### MemorySaver Is Not Persistent
-
-**Symptom:** Conversation history lost after server restart.
-
-**Cause:** `MemorySaver` stores state in memory only.
-
-**Fix:** Use database-backed checkpointer for production:
-```typescript
-import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
-const checkpointer = SqliteSaver.fromConnString("./checkpoints.db");
-
-import { PostgresSaver } from "@langchain/langgraph-checkpoint-postgres";
-const checkpointer = PostgresSaver.fromConnString(process.env.DATABASE_URL);
-```
-
-### Missing `thread_id`
-
-**Symptom:** `thread_id is required when using a checkpointer`
-
-**Fix:** Always include in config:
-```typescript
-await graph.invoke(input, { configurable: { thread_id: "unique-id" } });
-```
-
-### Human-in-the-Loop Resume Failures
-
-**Symptom:** After `interrupt()`, resuming restarts graph from beginning instead of continuing.
-
-**Fix:** Use the same `thread_id` for both initial invocation and resume. Verify checkpointer persists correctly. Note: `interrupt()` is not available in web/browser environments.
+- **`MemorySaver` is not persistent** — state is lost on server restart. Use `SqliteSaver` or `PostgresSaver` for production. See [langgraph-patterns.md](langgraph-patterns.md) Checkpointing and Memory section for setup.
+- **Missing `thread_id`** — always pass `{ configurable: { thread_id: "..." } }` when using a checkpointer.
+- **Resume starts fresh** — use the same `thread_id` for both initial invocation and `Command({ resume: ... })`. Verify checkpointer was provided at compile time.
 
 ---
 
@@ -548,95 +561,9 @@ graph.addConditionalEdges("design", (state) => {
 
 ---
 
-## Version Migration
-
-### createReactAgent -> createAgent
-
-| Aspect | `createReactAgent` (legacy) | `createAgent` (v1) |
-|--------|---------------------------|-------------------|
-| Package | `@langchain/langgraph/prebuilt` | `langchain` |
-| Model param | `llm: new ChatAnthropic(...)` | `model: "claude-haiku-4-5"` (string) |
-| Prompt param | `prompt: "..."` | `systemPrompt: "..."` |
-| Custom hooks | Not supported | `middleware: [...]` |
-| HITL | Manual `interrupt()` | `humanInTheLoopMiddleware` |
-| Streaming node | `"agent"` | `"model"` |
-| Custom state | Via `stateSchema` prop | Via middleware `stateSchema` |
-
-**Migration steps:**
-1. Install `langchain@latest`
-2. Change import: `import { createAgent } from "langchain"`
-3. Replace `llm:` with `model:` (string name or model instance)
-4. Replace `prompt:` with `systemPrompt:`
-5. Add middleware for HITL, summarization, etc.
-6. Update streaming code if filtering by node name (`"agent"` -> `"model"`)
-
-### Annotation.Root -> StateSchema
-
-Both are valid and stable. Migrate only if you want cleaner Zod integration:
-
-```typescript
-// Before (Annotation.Root)
-const State = Annotation.Root({
-  ...MessagesAnnotation.spec,
-  count: Annotation<number>({ reducer: (a, b) => a + b, default: () => 0 }),
-});
-
-// After (StateSchema)
-const State = new StateSchema({
-  messages: MessagesValue,
-  count: new ReducedValue(z.number().default(0), {
-    inputSchema: z.number(),
-    reducer: (a, b) => a + b,
-  }),
-});
-```
-
----
-
 ## Deployment
 
-### Edge Runtime is Incompatible
-
-LangGraph requires Node.js runtime features (`async_hooks`, `fs` for some checkpointers). Always set:
-
-```typescript
-// In Next.js API routes
-export const runtime = "nodejs";
-```
-
-### Vercel Considerations
-
-- **Function timeout**: Vercel Hobby plan has 10s timeout. Multi-agent workflows often exceed this. Use Pro plan (60s) or streaming responses to keep the connection alive.
-- **Serverless cold starts**: First invocation may be slow. `MemorySaver` state is lost between invocations — use persistent checkpointers.
-- **Bundle size**: LangChain packages can be large. Use granular imports and check bundle analyzer output.
-
-### LangSmith Integration
-
-Enable tracing in production for observability:
-
-```bash
-# .env
-LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=your_key
-LANGSMITH_PROJECT=my-project
-```
-
-For serverless environments (Vercel, AWS Lambda), ensure traces are flushed before the function exits:
-
-```typescript
-import { Client } from "langsmith";
-const client = new Client();
-
-// After graph execution
-await client.awaitPendingTraceBatches();
-```
-
-Or set `LANGSMITH_TRACING_BACKGROUND=false` to make tracing synchronous (adds latency but ensures no lost traces).
-
-### Long-Running Workflows
-
-For workflows exceeding serverless timeouts:
-- Use persistent checkpointers (SQLite/PostgreSQL) so work survives restarts
-- Stream intermediate results to keep the HTTP connection alive
-- Consider background job queues for very long workflows
-- Use `retryPolicy` on nodes for transient failures
+- **Edge Runtime is incompatible** — always use `export const runtime = "nodejs"` in Next.js API routes. LangGraph needs `async_hooks`.
+- **Vercel timeouts** — Hobby plan has 10s limit; multi-agent workflows need Pro (60s) or streaming to keep connections alive. `MemorySaver` state is lost between serverless invocations.
+- **LangSmith tracing** — set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` in `.env`. For serverless, call `await client.awaitPendingTraceBatches()` before the function exits, or set `LANGSMITH_TRACING_BACKGROUND=false`.
+- **Long-running workflows** — use persistent checkpointers, stream intermediate results, and add `retryPolicy` on nodes for transient failures.

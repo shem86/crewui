@@ -4,11 +4,11 @@
 
 - [StateGraph and Annotation](#stategraph-and-annotation)
 - [StateSchema (v1)](#stateschema-v1)
-- [MessagesAnnotation](#messagesannotation)
 - [Nodes and Edges](#nodes-and-edges)
 - [Conditional Edges](#conditional-edges)
 - [Command and Send](#command-and-send)
 - [Tool Calling](#tool-calling)
+- [Structured Output](#structured-output)
 - [ToolNode and toolsCondition](#toolnode-and-toolscondition)
 - [Functional API](#functional-api)
 - [Streaming](#streaming)
@@ -39,6 +39,8 @@ const MyState = Annotation.Root({
 - `(a, b) => a + b` — accumulate (numbers)
 - `(a, b) => [...a, ...b]` — append (arrays)
 - `messagesStateReducer` — ID-based merge (messages)
+
+**Note:** Use `.spec` when spreading `MessagesAnnotation` into `Annotation.Root()`. With `StateSchema`, use `MessagesValue` instead.
 
 **Critical:** If two nodes can update the same key, you MUST define a reducer. Without one, LangGraph throws `InvalidUpdateError`.
 
@@ -106,31 +108,6 @@ const ContextSchema = z.object({
 
 const graph = new StateGraph(State, ContextSchema);
 ```
-
----
-
-## MessagesAnnotation
-
-Built-in annotation with `messagesStateReducer` that handles:
-
-- Appending new messages
-- Updating existing messages by ID (deduplication)
-- Format conversion
-
-```typescript
-// Use directly when state is just messages
-const graph = new StateGraph(MessagesAnnotation)
-  .addNode("agent", agentFn)
-  .compile();
-
-// Or extend with additional fields
-const ExtendedState = Annotation.Root({
-  ...MessagesAnnotation.spec,
-  extraField: Annotation<string>({ reducer: (_, b) => b, default: () => "" }),
-});
-```
-
-**Note:** Use `.spec` when spreading into `Annotation.Root()`. With `StateSchema`, use `MessagesValue` instead.
 
 ---
 
@@ -265,22 +242,6 @@ const myTool = tool(
 );
 ```
 
-### Define with DynamicStructuredTool
-
-```typescript
-import { DynamicStructuredTool } from "@langchain/core/tools";
-
-// @ts-expect-error - TS2589 excessive type depth with complex Zod schemas
-const myTool = new DynamicStructuredTool({
-  name: "my_tool",
-  description: "Does something",
-  schema: z.object({ input: z.string() }),
-  func: async ({ input }) => `Processed: ${input}`,
-});
-```
-
-**Prefer `tool()` over `DynamicStructuredTool`** — simpler API, fewer TypeScript issues. Only use `DynamicStructuredTool` when you need class-based tool features. For complex Zod schemas, consider splitting into smaller sub-schemas to avoid TS2589.
-
 ### Bind Tools to Model
 
 ```typescript
@@ -306,6 +267,53 @@ const myTool = tool(
   },
   { name: "search", description: "Search", schema: z.object({ query: z.string() }) }
 );
+```
+
+---
+
+## Structured Output
+
+Use `withStructuredOutput()` to get validated JSON from the LLM instead of free-form text. Useful for routing decisions, classification, and data extraction.
+
+```typescript
+import { z } from "zod";
+
+const routeSchema = z.object({
+  route: z.enum(["full", "engineer_qa", "engineer_only"]),
+  reasoning: z.string().describe("Brief explanation of the routing decision"),
+});
+
+const structuredModel = model.withStructuredOutput(routeSchema);
+
+// Returns typed object matching the schema, not a message
+const result = await structuredModel.invoke([
+  new SystemMessage("Analyze the request and choose a workflow route."),
+  new HumanMessage(userRequest),
+]);
+
+console.log(result.route);      // "full" | "engineer_qa" | "engineer_only"
+console.log(result.reasoning);  // string
+```
+
+**Key points:**
+
+- Returns a plain object (not a message) — do NOT push into `state.messages`
+- Works with any Zod schema
+- Use in supervisor/router nodes to make structured routing decisions
+- The model uses tool calling under the hood to produce structured output
+- `withStructuredOutput()` returns a new runnable — use the return value, not the original model
+
+### In a Graph Node
+
+```typescript
+async function supervisorNode(state: typeof State.State) {
+  const supervisorModel = model.withStructuredOutput(routeSchema);
+  const result = await supervisorModel.invoke([
+    new SystemMessage("Choose the right workflow..."),
+    ...state.messages.filter((m) => m._getType() === "human"),
+  ]);
+  return { route: result.route, currentAgent: "supervisor" };
+}
 ```
 
 ---
@@ -547,21 +555,6 @@ export async function POST(req: Request) {
 }
 ```
 
-### streamEvents (Token-Level)
-
-```typescript
-for await (const event of graph.streamEvents(
-  { messages: [new HumanMessage("Hello")] },
-  { version: "v2" }
-)) {
-  if (event.event === "on_chat_model_stream") {
-    process.stdout.write(event.data?.chunk?.content || "");
-  }
-}
-```
-
-**Note:** `streamEvents` may have inconsistencies with some providers. Prefer `graph.stream()` with `streamMode: "messages"` or combined modes for production use.
-
 ---
 
 ## Human-in-the-Loop
@@ -781,24 +774,7 @@ const app = supervisorGraph.compile();
 
 ### createSwarm
 
-Returns a **StateGraph** (MUST call `.compile()`).
-
-```typescript
-import { createSwarm, createHandoffTool } from "@langchain/langgraph-swarm";
-
-const agentA = createReactAgent({
-  llm: model,
-  tools: [myTool, createHandoffTool({ agentName: "agentB" })],
-  name: "agentA",
-});
-
-const swarm = createSwarm({
-  agents: [agentA, agentB],
-  defaultActiveAgent: "agentA",
-});
-
-const app = swarm.compile({ checkpointer: new MemorySaver() });
-```
+Returns a **StateGraph** (MUST call `.compile()`). See [multi-agent-architecture.md](multi-agent-architecture.md) Pattern 3 for full example.
 
 ### Return Type Summary
 
