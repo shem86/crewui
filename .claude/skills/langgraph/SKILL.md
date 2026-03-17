@@ -1,130 +1,86 @@
 ---
 name: langgraph
-description: "Expert-level guidance for designing, building, and debugging multi-agent systems using LangChain.js and LangGraph.js. Covers architecture philosophy (supervisor, swarm, custom graph, functional API), StateGraph API, Annotation/StateSchema/reducers, streaming (SSE, multiple modes, custom writer), tool calling (ToolNode, bindTools, tool()), structured output (withStructuredOutput), checkpointing/memory, prebuilt agents (createAgent, createReactAgent, createSupervisor, createSwarm), human-in-the-loop (interrupt/Command), subgraphs, error handling, and production hardening. Use when the user mentions: multi-agent, multi agent, LangChain, LangGraph, agent orchestration, supervisor pattern, swarm agents, agent handoff, StateGraph, ToolNode, createReactAgent, createAgent, agent streaming, agent checkpointing, agent memory, agentic workflows, agent loops, functional API, entrypoint, interrupt, human-in-the-loop, withStructuredOutput, structured output, or any LangChain/LangGraph library usage."
+description: "Project-specific LangGraph patterns, pitfalls, and decisions for CrewUI's multi-agent pipeline. Use when working on the agent graph, streaming, or debugging LangGraph issues. For general LangGraph API questions or examples, use the Exa skill (get-code-context-exa) instead."
 ---
 
-# LangGraph Multi-Agent Expert
+# LangGraph — CrewUI Playbook
 
-Deep expertise in multi-agent system design and implementation with LangChain.js / LangGraph.js.
+Project-specific decisions and pitfalls for CrewUI's LangGraph setup. For general LangGraph API syntax, examples, or docs, **use the Exa skill** (`get-code-context-exa`) with a query like `"LangGraph.js <topic> TypeScript"`.
 
-## What's Current (LangGraph v1 + LangChain v1)
+## Architecture Decisions
 
-Key changes to be aware of:
+1. **Custom StateGraph, not prebuilt Supervisor/Swarm.** We use explicit nodes and edges in `src/lib/agents/graph.ts` via `buildMultiAgentGraph(fs, onEvent, mode)`. This avoids the extra LLM routing call of `createSupervisor`.
 
-- **`createAgent`** from `"langchain"` replaces `createReactAgent` from `@langchain/langgraph/prebuilt`. Uses `systemPrompt` (not `prompt`), supports middleware (HITL, summarization, PII redaction). **Requires the `langchain` package** (not included with `@langchain/langgraph`).
-- **`StateSchema`** with Zod is the recommended way to define state (alternative to `Annotation.Root`). Uses `ReducedValue`, `MessagesValue`.
-- **Functional API** (`entrypoint`, `task` from `@langchain/langgraph/func`) — imperative alternative to StateGraph for linear workflows.
-- **`interrupt()`** function for human-in-the-loop — pause graph, resume with `Command({ resume: ... })`.
-- **Custom streaming** via `config.writer?.()` with `streamMode: "custom"`. Multiple modes: `streamMode: ["messages", "updates", "custom"]`.
-- Core Graph API (StateGraph, nodes, edges, `Annotation.Root`) is **unchanged and stable**.
+2. **Two workflow modes** (set via UI toggle, locked once conversation starts):
+   - **Pipeline** (default): hardcoded Design → Engineer → QA
+   - **Supervisor**: LLM Supervisor node picks a route (`full`, `engineer_qa`, `engineer_only`)
 
-## Decision Tree
+3. **LangChain imports are server-only.** All `@langchain/*` imports live in API routes and `src/lib/agents/`. Shared types go in `src/lib/agents/types.ts` with **zero LangChain imports** to avoid `node:async_hooks` webpack errors.
 
-Determine what the user needs:
+4. **SSE streaming per-agent.** Agent events stream to the client via a custom writer. The `onEvent` callback emits `agent_start`, `agent_message`, `agent_done` events.
 
-**Quick start / single agent with tools?**
-- Use `createAgent` from `"langchain"` (v1, requires `langchain` package) or `createReactAgent` from `@langchain/langgraph/prebuilt`
-- Read [references/example-single-agent.md](references/example-single-agent.md)
+5. **Claude haiku-4.5 via `ChatAnthropic`.** Model configured in `src/lib/provider.ts` with mock fallback when `ANTHROPIC_API_KEY` is missing.
 
-**Designing a multi-agent architecture?**
-- Choosing between supervisor, swarm, custom graph, or functional API
-- Read [references/multi-agent-architecture.md](references/multi-agent-architecture.md)
+6. **`str_replace_editor` tool** for the Engineer agent. Modifies files in the VirtualFileSystem (`src/lib/file-system.ts`).
 
-**Fixed pipeline (Design -> Engineer -> QA)?**
-- Use custom StateGraph with explicit edges
-- Read [references/example-multi-agent-pipeline.md](references/example-multi-agent-pipeline.md)
+7. **Supervisor routing uses Zod schema** (`supervisorRouteSchema` in `src/lib/agents/supervisor-agent.ts`) with `withStructuredOutput`.
 
-**Dynamic routing (LLM decides which agent)?**
-- Use `createSupervisor` from `@langchain/langgraph-supervisor`
-- Read [references/example-supervisor.md](references/example-supervisor.md)
+## Key Files
 
-**Peer-to-peer agent handoff?**
-- Use `createSwarm` / `createHandoffTool` from `@langchain/langgraph-swarm`
-- Read [references/multi-agent-architecture.md](references/multi-agent-architecture.md) Pattern 3
+- `src/lib/agents/graph.ts` — StateGraph definition
+- `src/lib/agents/types.ts` — Shared types (client-safe, no LangChain)
+- `src/lib/agents/real-flow.ts` — Runs the real graph
+- `src/lib/agents/mock-flow.ts` — Mock workflow for dev
+- `src/lib/agents/supervisor-agent.ts` — Supervisor prompt + route schema
+- `src/lib/agents/design-agent.ts`, `engineer-agent.ts`, `qa-agent.ts` — Agent prompts/tools
 
-**Linear multi-step workflow (no graph needed)?**
-- Use Functional API: `entrypoint` + `task` from `@langchain/langgraph/func`
-- Read [references/langgraph-patterns.md](references/langgraph-patterns.md) Functional API section or [references/multi-agent-architecture.md](references/multi-agent-architecture.md) Pattern 4
+## Pitfalls We've Hit
 
-**Need structured LLM output (routing, classification, extraction)?**
-- Use `model.withStructuredOutput(zodSchema)` — returns typed object, not a message
-- Read [references/langgraph-patterns.md](references/langgraph-patterns.md) Structured Output section
+### `node:async_hooks` breaks client components
+All `@langchain/*` packages use `node:async_hooks`. Importing them in `"use client"` files breaks webpack. Keep all LangGraph code server-side. Share types via `agents/types.ts`.
 
-**Need human approval before tool execution?**
-- Use `humanInTheLoopMiddleware` with `createAgent`, or `interrupt()` in graph nodes
-- Read [references/langgraph-patterns.md](references/langgraph-patterns.md) Human-in-the-Loop section
+### Missing reducers cause silent overwrites
+Without a reducer, concurrent node updates cause `InvalidUpdateError`. Always use `MessagesAnnotation` or define explicit reducers for shared state keys.
 
-**Implementing streaming to a client?**
-- Use `graph.stream()` with `streamMode` (not `streamEvents`)
-- Combined modes: `streamMode: ["messages", "updates", "custom"]`
-- Read [references/langgraph-patterns.md](references/langgraph-patterns.md) Streaming section
-
-**Defining graph state?**
-- `StateSchema` (v1, Zod-based) or `Annotation.Root` (stable) — both valid
-- Read [references/langgraph-patterns.md](references/langgraph-patterns.md) StateGraph and Annotation / StateSchema sections
-
-**Using subgraphs (graph-as-node)?**
-- Invoke from a node function, or add compiled graph directly as a node
-- Read [references/multi-agent-architecture.md](references/multi-agent-architecture.md) Subgraphs section
-
-**Debugging or hitting errors?**
-- Read [references/langgraph-pitfalls.md](references/langgraph-pitfalls.md) for common pitfalls and fixes
-
-**Migrating from pre-v1 code?**
-- `createReactAgent` -> `createAgent` (requires `langchain` package), `prompt` -> `systemPrompt`, `llm` -> `model` (accepts string), streaming node `"agent"` -> `"model"`
-- `Annotation.Root` -> `StateSchema` (optional, both are stable)
-
-**Building something end-to-end?**
-- Read all three references as needed throughout the process
-
-## Core Principles
-
-1. **Keep LangChain imports server-only.** `@langchain/*` packages use `node:async_hooks` which breaks webpack/client bundling. Share types via a separate file with zero LangChain imports.
-
-2. **Always define reducers for shared state keys.** Without a reducer, concurrent node updates cause `InvalidUpdateError`. Use `MessagesAnnotation` or `MessagesValue` for messages.
-
-3. **Enable `handleToolErrors: true` on ToolNode.** Without it, invalid LLM tool calls crash the workflow instead of retrying.
-
-4. **Type-check messages before casting.** Never blindly cast `state.messages[last]` as `AIMessage` -- check `._getType()` first.
-
-5. **Set explicit recursion limits and iteration counters.** Prevent infinite loops in cyclic agent graphs.
-
-6. **Wrap SSE writer calls in try-catch.** Clients can disconnect mid-stream.
-
-7. **Use `tool()` over `DynamicStructuredTool`.** Simpler API, fewer TS type-depth issues. Tool functions must return strings.
-
-8. **Interrupts require a checkpointer.** `interrupt()` won't work without persistence. Also not available in `@langchain/langgraph/web`.
-
-## Quick Reference: Key Imports
-
+### Anthropic content blocks aren't strings
+Claude can return `content` as `string` OR `Array<{type, text}>`. Always extract text safely:
 ```typescript
-// Graph API
-import { StateGraph, Annotation, MessagesAnnotation, START, END, Command, Send, MemorySaver } from "@langchain/langgraph";
-// State (v1 alternative)
-import { StateSchema, ReducedValue, MessagesValue } from "@langchain/langgraph";
-// Functional API
-import { entrypoint, task } from "@langchain/langgraph/func";
-// Prebuilt (legacy)
-import { createReactAgent, ToolNode, toolsCondition } from "@langchain/langgraph/prebuilt";
-// Prebuilt (v1 — requires `langchain` package, not installed in this project)
-import { createAgent, humanInTheLoopMiddleware } from "langchain";
-// Multi-agent
-import { createSupervisor } from "@langchain/langgraph-supervisor";
-import { createSwarm, createHandoffTool } from "@langchain/langgraph-swarm";
-// Interrupts
-import { interrupt } from "@langchain/langgraph";
-// Messages
-import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from "@langchain/core/messages";
-// Tools
-import { tool } from "@langchain/core/tools";
-// Model
-import { ChatAnthropic } from "@langchain/anthropic";
-// Config type (for streaming writer)
-import type { LangGraphRunnableConfig } from "@langchain/langgraph";
+function extractTextContent(content: string | Array<{ type: string; text?: string }>): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content))
+    return content.filter(b => b.type === "text" && b.text).map(b => b.text!).join("\n");
+  return "";
+}
 ```
 
-## Examples
+### Type-check messages before casting
+Never blindly cast to `AIMessage`. Check `._getType() === "ai"` first.
 
-- **Single agent with tools** — [references/example-single-agent.md](references/example-single-agent.md)
-- **Multi-agent pipeline (custom StateGraph)** — [references/example-multi-agent-pipeline.md](references/example-multi-agent-pipeline.md)
-- **Supervisor with prebuilt** — [references/example-supervisor.md](references/example-supervisor.md)
+### Infinite loops in cyclic graphs
+Set `recursionLimit` on `.compile()` and add iteration counters to state. Check counters in routing functions.
+
+### SSE writer can be closed
+Clients disconnect mid-stream. Wrap all `writer.write()` calls in try-catch.
+
+### `bindTools` returns a new instance
+Use the return value, not the original model.
+
+### `handleToolErrors: true` on ToolNode
+Without it, invalid LLM tool calls crash the workflow. Always enable.
+
+### Edge Runtime incompatible
+Use `export const runtime = "nodejs"` in API routes. LangGraph needs `async_hooks`.
+
+### Growing message array hits token limits
+Each agent iteration adds SystemMessage + all accumulated messages. Summarize or truncate when approaching limits.
+
+## When to Use Exa Instead
+
+Use the Exa skill (`get-code-context-exa`) for:
+- LangGraph API syntax you don't remember
+- Examples of patterns we haven't used (swarm, functional API, HITL)
+- Checking if a newer LangGraph version changed an API
+- Debugging errors not covered above
+- Any general "how do I do X in LangGraph" question
+
+Query tip: always include `"LangGraph.js TypeScript"` in Exa queries to avoid Python results.
